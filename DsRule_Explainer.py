@@ -3,52 +3,58 @@ import pandas as pd
 from sklearn.metrics import accuracy_score
 
 
-class InstanceExplainer(object):
-    def __init__(self, dataset, instance, boundary_instance, predicted_class):
+class Explainer(object):
+    def __init__(self, dataset, black_box):
         self.dataset = dataset
-        self.instance = instance
-        self.boundary_instance = boundary_instance
-        self.predicted_class=predicted_class
-        self.predicates={}
-        self.texts_to_show={}
-        self.accuracy_of_rules=[]
-        #each item in rules is the best rule picked based on the previous rules
-        self.rules=[]
+        self.black_box = black_box
+        self.dataset['pred'] = self.black_box.predict(self.dataset)
 
-
-    def greedy_construct_rules(self):
-        sample=self.dataset
-        for i in len(self.predicates):
-            round_of_accuracy={}
-            for column_name,predicate in self.predicates:
-                if len(predicate)==1:
-                    sample=sample[sample[column_name]==predicate]
-                    accuracy=sum(sample['predicted_class'] == self.predicted_class)/len(sample)
-                    round_of_accuracy[accuracy]=(column_name,predicate)
-                else:
-                    sample=sample[sample[column_name]<=predicate[1] and sample[column_name]>=predicate[0]]
-                    accuracy = sum(sample['predicted_class'] == self.predicted_class) / len(sample)
-                    round_of_accuracy[accuracy] = (column_name, predicate)
-            best_accuracy=max(round_of_accuracy.keys())
-            picked_rule = round_of_accuracy[best_accuracy]
-
-            self.accuracy_of_rules.append(best_accuracy)
-            self.rules.append(picked_rule)
+    def coverage(self, predicate, condition, dataset, predicted_class):
+        total = len(self.dataset[self.dataset['pred'] == predicted_class])
+        if type(condition) == type([]):
+             part = len(dataset.ix[(dataset[predicate] > condition[0]) & (dataset[predicate] < condition[1])])
+        else:
+             part = len(dataset[dataset[predicate] == condition])
+        return part/total
 
 
 
+    def accuracy(self, predicate, condition, dataset, predicted_class):
+        if type(condition) == type([]):
+            dataset = dataset.ix[(dataset[predicate]>condition[0]) & (dataset[predicate]<condition[1])]
+            acc = len(dataset[dataset['pred'] == predicted_class])/len(dataset)
+            return acc
+        else:
+            dataset = dataset[dataset[predicate] == condition]
+            acc = len(dataset[dataset['pred'] == predicted_class]) / len(dataset)
+            return acc
 
-    def explain_instance(self,num_rules=1):
-        self.greedy_construct_rules()
-        for i in range(num_rules):
-            print(self.texts_to_show[i])
+    def class_explainer(self, category, predicates):
+        pass
 
-    def extract_rules(self):
-        columns = np.array(self.dataset.columns)
-        for k in range(len(columns)):
-            if self.boundary_instance[k] == self.instance[k]:
-                self.predicates[columns[k]] = [self.instance[k]]
+    def instance_explainer(self, instance, predicates):
+        self.predicate = []
+        pred_class = self.black_box.predict(instance)[0]
+        iter_dataset = self.dataset.copy(deep=True)
+        for p in range(len(predicates)):
+            maxAccuracy = None
+            selPredicate = None
+            selCoverage = None
+            for predicate in predicates:
+                cur_accuracy = self.accuracy(predicate, predicates[predicate], iter_dataset, pred_class)
+                if maxAccuracy is None or cur_accuracy > maxAccuracy:
+                    maxAccuracy = cur_accuracy
+                    selPredicate = predicate
+                    selCoverage = self.coverage(selPredicate,predicates[selPredicate],iter_dataset,pred_class)
+            predicate = selPredicate
+            condition = predicates[selPredicate]
+            self.predicate.append((predicate, condition, maxAccuracy,selCoverage))
+            predicates.pop(selPredicate)
+            if type(condition) == type([]):
+                iter_dataset = iter_dataset.ix[(iter_dataset[predicate] > condition[0]) & (iter_dataset[predicate] < condition[1])]
             else:
-                self.predicates[columns[k]] = [min(self.instance[k], self.boundary_instance[k]),
-                                               max(self.instance[k], self.boundary_instance[k])]
+                iter_dataset = iter_dataset[iter_dataset[predicate] == condition]
+        return self.predicate
+
+
 

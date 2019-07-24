@@ -64,7 +64,7 @@ class GradientDescentGreedySearch(object):
             test_instance = test_instance_next
             updated_class = self.black_box_model.predict(test_instance)
             if updated_class != original_class:
-                print("yes")
+                #print("yes")
                 self.finish = True
                 break
             num += 1
@@ -151,7 +151,7 @@ class SimulatedAnnealingGreedySearch(object):
             self.tmp = self.tmp * self.alpha
             updated_class = self.black_box_model.predict(test_instance)
             if updated_class != original_class:
-                print("yes")
+                #print("yes")
                 self.finish = True
                 break
         curr = time.time()

@@ -4,8 +4,7 @@ from sklearn.cluster import KMeans
 from pandas.api.types import is_numeric_dtype
 from DsRule_GreedySearch import GradientDescentGreedySearch
 from DsRule_GreedySearch import SimulatedAnnealingGreedySearch
-from DsRule_Explainer import InstanceExplainer
-
+from DsRule_Explainer import Explainer
 
 class DsRule:
     def __init__(self, dataset, black_box_model):
@@ -54,7 +53,7 @@ class DsRule:
                   "parameter of the function")
         return boundary_instance
 
-    def instance_explainer(self, instance):
+    def instance_explainer(self, instance,length=3):
         category=self.black_box_model.predict(instance)
         rule_range=self.class_level_explainer(category[0])
         instance_range={}
@@ -69,8 +68,16 @@ class DsRule:
                         else:
                             instance_range[column_name]=interval
                         break
-        print(instance_range)
-        return instance_range
+        explainer = Explainer(self.dataset,self.black_box_model)
+        predicates = explainer.instance_explainer(instance, instance_range)
+        print("If ",end='')
+        for i in range(length):
+            if i > 0:
+                print(" and ",end='')
+            print("feature ",predicates[i][0]," is ",predicates[i][1],end='')
+        print(" Then class ", category[0])
+        print("Accuracy is ", predicates[length-1][2])
+        return predicates
 
     def class_level_explainer(self, category, cluster_model=KMeans, n_clusters=5, max_iter=2000):
         predicted_dataset = pd.DataFrame()
